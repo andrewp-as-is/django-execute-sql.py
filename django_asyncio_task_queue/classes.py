@@ -5,18 +5,8 @@ from django.db.utils import InterfaceError, OperationalError
 
 from .models import Log
 
-class QueueItem:
-    worker = None
-    args = None
-    kwargs = None
 
-    def __init__(self,worker,*args,**kwargs):
-        self.worker = worker
-        self.args = args
-        self.kwargs = kwargs
-
-
-class QueueWorker:
+class TaskRunner:
     model = None
 
     def __init__(self, **kwargs):
@@ -38,16 +28,13 @@ class QueueWorker:
                 created_at=datetime.now()
             )
 
-    async def init(self):
-        pass
-
     async def run(self):
         pass
 
     async def run_finally(self):
         pass
 
-    async def complete(self, **kwargs):
+    async def complete_task(self, **kwargs):
         self.is_completed = True
         duration = str(datetime.now() - self.started_at)[0:7]
         await self.log('COMPLETED time %s seconds' % duration)
@@ -63,14 +50,14 @@ class QueueWorker:
             started_at=self.started_at,
             updated_at=datetime.now()
         )
-        await self.update(**kwargs)
+        await self.update_task(**kwargs)
 
-    async def delete(self):
+    async def delete_task(self):
         self.is_deleted = True
         await self.log('DELETED')
         await sync_to_async(self.model.objects.filter(pk=pk).delete)()
 
-    async def disable(self):
+    async def disable_task(self):
         self.is_disabled = True
         await self.log('DISABLED')
         kwargs = dict(
@@ -85,10 +72,9 @@ class QueueWorker:
             started_at=None,
             updated_at=datetime.now()
         )
-        await self.update(**kwargs)
+        await self.update_task(**kwargs)
 
-
-    async def restart(self, **kwargs):
+    async def restart_task(self, **kwargs):
         self.is_restarted = True
         await self.log('RESTARTED')
         kwargs.update(
@@ -102,7 +88,7 @@ class QueueWorker:
             started_at=None,
             updated_at=datetime.now()
         )
-        await self.update(**kwargs)
+        await self.update_task(**kwargs)
 
-    async def update(self, **kwargs):
+    async def update_task(self, **kwargs):
         await sync_to_async(self.model.objects.filter(pk=pk).update)(**kwargs)

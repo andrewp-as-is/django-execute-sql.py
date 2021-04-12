@@ -1,5 +1,4 @@
 from django.db import models
-from django_postgres_timestamp_without_tz import DateTimeWithoutTZField
 
 
 class Log(models.Model):
@@ -7,7 +6,7 @@ class Log(models.Model):
     task_id = models.IntegerField()
 
     msg = models.TextField()
-    created_at = DateTimeWithoutTZField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'async_tasks_log'
+        db_table = 'asyncio_task_queue_log'

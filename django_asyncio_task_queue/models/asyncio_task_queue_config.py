@@ -5,8 +5,7 @@ class Config(models.Model):
     db_table = models.TextField(null=True)
     is_logged = models.BooleanField(default=False)
     is_disabled = models.BooleanField(default=False)
-    limit = models.IntegerField()
+    enqueue_limit = models.IntegerField(default=42)
 
     class Meta:
-        db_table = 'async_tasks_config'
-        managed = False
+        db_table = 'asyncio_task_queue_config'

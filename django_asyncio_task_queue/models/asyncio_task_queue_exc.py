@@ -11,4 +11,4 @@ class Exc(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'async_tasks_exc'
+        db_table = 'asyncio_task_queue_exc'
