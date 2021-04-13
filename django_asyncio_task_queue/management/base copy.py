@@ -16,24 +16,23 @@ class WorkerCommand(BaseCommand):
         self.q = asyncio.Queue()
         self.unqueue_tasks()
         ioloop = asyncio.get_event_loop()
-        ioloop.run_until_complete(asyncio.wait(self.get_awaitable_objects()))
+        aws = []
+        for coro in self.get_coroutines():
+            aws.append(loop.create_task(coro))
+        ioloop.run_until_complete(asyncio.wait(aws))
         ioloop.close()
 
     def get_workers_count(self):
         return self.options.get('workers_count')
 
-    def get_awaitable_objects(self):
-        ioloop = asyncio.get_event_loop()
-        awaitable_objects = [
-            ioloop.create_task(self.put_tasks_loop(self.q)),
-            ioloop.create_task(self.restart_loop()),
+    def get_coroutines(self):
+        coroutines = [
+            self.put_tasks_loop(self.q),
+            self.restart_loop(),
         ]
         for _ in range(1, self.get_workers_count() + 1):
-            awaitable_objects.append(ioloop.create_task(self.worker_loop(self.q)))
-        return awaitable_objects
-
-    def unqueue_tasks(self):
-        unqueue_tasks()
+            coroutines.append(self.worker_loop(self.q))
+        return coroutines
 
     async def put_tasks_loop(self,q):
         await put_tasks_loop(q)
@@ -43,4 +42,7 @@ class WorkerCommand(BaseCommand):
 
     async def worker_loop(self,q):
         await worker_loop(q)
+
+    async def unqueue_tasks(self):
+        await unqueue_tasks()
 

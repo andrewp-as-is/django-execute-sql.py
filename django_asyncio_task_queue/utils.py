@@ -1,18 +1,21 @@
+import asyncio
 from datetime import datetime
 
+
 from asgiref.sync import sync_to_async
+import django
 from django.conf import settings
 
-from .models import AbstractTaskModel
+from .models import AbstractTask
 
 STARTED_AT = datetime.now()
-RESTART_INTERVAL = float(getattr(settings,'ASYNCIO_TASK_QUEUE_RESTART_INTERVAL',None))
+RESTART_INTERVAL = getattr(settings,'ASYNCIO_TASK_QUEUE_RESTART_INTERVAL',None)
 SLEEP_INTERVAL = float(getattr(settings,'ASYNCIO_TASK_QUEUE_SLEEP_INTERVAL',1))
 
 
 def get_models():
     return list(filter(
-        lambda m:issubclass(m,AbstractTaskModel) and not m._meta.abstract,
+        lambda m:issubclass(m,AbstractTask) and not m._meta.abstract,
         django.apps.apps.get_models()
     ))
 
@@ -51,7 +54,7 @@ async def put_tasks(q):
 async def put_tasks_loop(q):
     while True:
         await asyncio.sleep(SLEEP_INTERVAL)
-        put_tasks(q)
+        await put_tasks(q)
 
 
 async def restart_loop(q):

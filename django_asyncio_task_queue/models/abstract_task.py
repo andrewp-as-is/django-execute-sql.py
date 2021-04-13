@@ -5,7 +5,7 @@ from django.db import models
 
 from .asyncio_task_queue_log import Log
 
-class AbstractTaskModel(models.Model):
+class AbstractTask(models.Model):
     is_completed = models.BooleanField(default=False)
     is_disabled = models.BooleanField(default=False)
     is_enqueued = models.BooleanField(default=False)
@@ -22,6 +22,9 @@ class AbstractTaskModel(models.Model):
     started_at = models.DateTimeField(null=True)
     updated_at = models.DateTimeField(null=True)
 
+    class Meta:
+        abstract = True
+
     is_logged = None
     exclude_fields = [
         'is_completed',
@@ -34,8 +37,6 @@ class AbstractTaskModel(models.Model):
         'updated_at'
     ]
 
-    class Meta:
-        abstract = True
 
     def get_db_table(self):
         return self._meta.db_table
