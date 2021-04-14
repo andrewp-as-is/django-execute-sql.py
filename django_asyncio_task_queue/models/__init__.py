@@ -1,6 +1,3 @@
-
-print("TEST")
-
 from .abstract_config import AbstractConfig
 from .abstract_exc import AbstractExc
 from .abstract_log import AbstractLog

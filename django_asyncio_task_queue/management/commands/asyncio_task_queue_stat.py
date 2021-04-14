@@ -7,7 +7,7 @@ from django_asyncio_task_queue.utils import get_models
 class Command(BaseCommand):
 
     def handle(self, *args, **options):
-        for model in await get_models():
+        for model in get_models():
             completed_tasks_count=model.objects.filter(is_completed=True).count()
             disabled_tasks_count=model.objects.filter(is_disabled=True).count()
             enqueued_tasks_count=model.objects.filter(is_enqueued=True).count()
