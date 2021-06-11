@@ -2,7 +2,7 @@ from django.db import models
 
 class AbstractError(models.Model):
     db_table = models.TextField()
-    task_id = models.IntegerField()
+    task_id = models.TextField()
 
     exc_type = models.TextField()
     exc_value = models.TextField()

@@ -1,12 +1,12 @@
 import asyncio
 from datetime import datetime
+import logging
 import os
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-
-# todo: getenv
+from django_asyncio_task_queue.utils import get_models
 
 STARTED_AT = datetime.now()
 SLEEP_SECONDS = getattr(settings,'ASYNCIO_TASK_QUEUE_SLEEP',1)
@@ -29,6 +29,8 @@ class WorkerCommand(BaseCommand):
         self.args = args
         self.options = options
         self.q = asyncio.Queue()
+        for model in self.get_models():
+            model.objects.filter(is_enqueued=True).update(is_enqueued=False,is_pending=True)
         ioloop = asyncio.get_event_loop()
         ioloop.run_until_complete(asyncio.wait(self.get_aws(self.q)))
         ioloop.close()
@@ -57,7 +59,6 @@ class WorkerCommand(BaseCommand):
         return self.options.get('workers_count')
 
     async def run_task(self,task):
-        pint('run_task %s' % task)
         await task.run_task()
 
     def get_models(self):
@@ -66,16 +67,20 @@ class WorkerCommand(BaseCommand):
     async def put_tasks(self,q):
         count = 0
         for model in self.get_models():
-            count+=await model.put_tasks(q)
+            count+=(await model.put_tasks(q) or 0)
         return count
 
     async def put_tasks_loop(self,q):
         count = 0
-        while True:
-            await asyncio.sleep(self.get_sleep_seconds())
-            count+=await self.put_tasks(q)
-            if count>=RESTART_COUNT:
-                sys.exit(0)
+        try:
+            while True:
+                await asyncio.sleep(self.get_sleep_seconds())
+                count+=(await self.put_tasks(q) or 0)
+                if count and RESTART_COUNT and count>=RESTART_COUNT:
+                    sys.exit(0)
+        except Exception as e:
+            logging.error(e)
+            sys.exit(0)
 
     async def restart_loop(self):
         while True:
@@ -85,13 +90,16 @@ class WorkerCommand(BaseCommand):
             await asyncio.sleep(10)
 
     async def worker_loop(self,q):
-        while True:
-            try:
-                task = await q.get()
-                task.started_at = datetime.now()
-                await self.run_task(task)
-                q.task_done()
-                await asyncio.sleep(0.01)
-            except asyncio.QueueEmpty:
-                await asyncio.sleep(1)
-
+        try:
+            while True:
+                try:
+                    task = await q.get()
+                    task.started_at = datetime.now()
+                    await self.run_task(task)
+                    q.task_done()
+                    await asyncio.sleep(0.01)
+                except asyncio.QueueEmpty:
+                    await asyncio.sleep(1)
+        except Exception as e:
+            logging.error(e)
+            sys.exit(0)

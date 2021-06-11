@@ -20,7 +20,6 @@ class Command(BaseCommand):
                 enqueued_tasks_count = model.objects.filter(is_enqueued=True).count(),
                 failed_tasks_count = model.objects.filter(is_failed=True).count(),
                 pending_tasks_count = model.objects.filter(is_pending=False).count(),
-                restarted_tasks_count = model.objects.filter(is_restarted=True).count(),
                 updated_at=datetime.now()
             )
             if model._meta.db_table in db_tables:
