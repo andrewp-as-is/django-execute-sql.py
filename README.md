@@ -1,14 +1,76 @@
-[![](https://img.shields.io/pypi/v/django-asyncio-task-queue.svg?maxAge=3600)](https://pypi.org/project/django-asyncio-task-queue/)
-[![](https://img.shields.io/badge/License-Unlicense-blue.svg?longCache=True)](https://unlicense.org/)
-[![](https://github.com/andrewp-as-is/django-asyncio-task-queue.py/workflows/tests42/badge.svg)](https://github.com/andrewp-as-is/django-asyncio-task-queue.py/actions)
+[![](https://img.shields.io/badge/released-2021.6.11-green.svg?longCache=True)](https://pypi.org/project/django-asyncio-task-queue/)
+[![](https://img.shields.io/badge/license-Unlicense-blue.svg?longCache=True)](https://unlicense.org/)
 
-### Install
+### Installation
 ```bash
-pip install django-asyncio-task-queue
+$ pip install django-asyncio-task-queue
 ```
 
-### `settings.py`
+### Pros
++   base task models
++   error handling
++   log messages
++   management commands
++   admin interface
+
+#### `settings.py`
 ```python
 INSTALLED_APPS+=['django_asyncio_task_queue']
+
+# optional:
+ASYNCIO_TASK_QUEUE_SLEEP=0.1
+ASYNCIO_TASK_QUEUE_RESTART_SECONDS=666 # restart after X seconds
+ASYNCIO_TASK_QUEUE_RESTART_COUNT=42*1000 # restart after X tasks
+ASYNCIO_TASK_QUEUE_MODELS=['my_app.Task1','my_app.Task2']
+```
+#### `migrate`
+```bash
+$ python manage.py migrate
+```
+
+### Examples
+`models.py`
+```python
+from django_asyncio_task_queue.models import AbstractTask
+
+class Task1(AbstractTask):
+    custom_field1 = models.TextField()
+
+    async def run_task(self):
+        try:
+            await task.log('msg')
+            await task.finish_task()
+        except Exception as e:
+            await self.disable_task()
+            await self.error(e)
+```
+
+`admin.py`
+```python
+from django.apps import apps
+from django.contrib import admin
+
+from django_asyncio_task_queue.admin import TaskAdmin
+from django_asyncio_task_queue.models import AbstractTask
+
+models = list(filter(
+    lambda m:issubclass(m,AbstractTask) and not m._meta.abstract,
+    apps.get_models()
+))
+for model in models:
+    modelAdmin = type('%sAdmin' % model.__name__, (TaskAdmin,), {})
+    admin.site.register(model, modelAdmin)
+```
+
+management commands
+```bash
+$ export DJANGO_ASYNCIO_TASK_QUEUE_RESTART_SECONDS=666 # optional. restart after X seconds
+$ export DJANGO_ASYNCIO_TASK_QUEUE_RESTART_COUNT=9000 # optional. restart after X tasks
+$ export DJANGO_ASYNCIO_TASK_QUEUE_MODELS='app.Model1,app.Model2' # optional. custom models
+$ python manage.py asyncio_task_queue_worker 42 # 42 workers
+```
+
+```bash
+$ python manage.py asyncio_task_queue_stat # collect stat for AbstractTask subclasses
 ```
 

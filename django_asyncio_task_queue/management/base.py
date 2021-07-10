@@ -1,17 +1,19 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import os
+import sys
 
+from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from django_asyncio_task_queue.utils import get_models
+from ..models import Model
 
-STARTED_AT = datetime.now()
+RESTART_SECONDS = int(getattr(settings,'ASYNCIO_TASK_QUEUE_RESTART_SECONDS',None) or 0)
+RESTART_COUNT = int(getattr(settings,'ASYNCIO_TASK_QUEUE_RESTART_COUNT',None) or 0)
 SLEEP_SECONDS = getattr(settings,'ASYNCIO_TASK_QUEUE_SLEEP',1)
-RESTART_SECONDS = getattr(settings,'ASYNCIO_TASK_QUEUE_RESTART_SECONDS',None)
-RESTART_COUNT = getattr(settings,'ASYNCIO_TASK_QUEUE_RESTART_COUNT',None)
+STARTED_AT = datetime.now()
 
 
 class WorkerCommand(BaseCommand):
@@ -19,8 +21,9 @@ class WorkerCommand(BaseCommand):
     options = None
     q = None
     models = None
-    sleep_seconds = None
     restart_seconds = None
+    sleep_seconds = None
+    workers_count = None
 
     def add_arguments(self , parser):
         parser.add_argument('workers_count', type=int)
@@ -29,65 +32,59 @@ class WorkerCommand(BaseCommand):
         self.args = args
         self.options = options
         self.q = asyncio.Queue()
-        for model in self.get_models():
-            model.objects.filter(is_enqueued=True).update(is_enqueued=False,is_pending=True)
+        self.init()
         ioloop = asyncio.get_event_loop()
         ioloop.run_until_complete(asyncio.wait(self.get_aws(self.q)))
         ioloop.close()
 
+    def init(self):
+        if not self.models:
+            self.models = []
+            for m in Model.objects.filter(is_enabled=True):
+                model = m.get_model()
+                self.models.append(model)
+        for model in self.models:
+            if hasattr(model,'init_model'):
+                model.init_model()
+
     def get_aws(self,q):
         ioloop = asyncio.get_event_loop()
-        aws = [
-            ioloop.create_task(self.put_tasks_loop(q)),
-            ioloop.create_task(self.restart_loop()),
-        ]
+        aws = [ioloop.create_task(self.push_loop(q))]
         for _ in range(1, self.get_workers_count() + 1):
             aws.append(ioloop.create_task(self.worker_loop(q)))
         return aws
 
-    def get_sleep_seconds(self):
-        if self.sleep_seconds:
-            return float(self.sleep_seconds)
-        return float(SLEEP_SECONDS)
-
     def get_restart_seconds(self):
-        for restart_seconds in [self.restart_seconds,RESTART_SECONDS]:
-            if restart_seconds:
-                return float(restart_seconds)
+        return self.restart_seconds if self.restart_seconds else RESTART_SECONDS
+
+    def get_sleep_seconds(self):
+        return self.sleep_seconds if self.sleep_seconds else SLEEP_SECONDS
 
     def get_workers_count(self):
-        return self.options.get('workers_count')
+        return self.workers_count if self.workers_count else self.options.get('workers_count')
 
     async def run_task(self,task):
         await task.run_task()
 
-    def get_models(self):
-        return self.models if self.models else get_models()
-
-    async def put_tasks(self,q):
-        count = 0
-        for model in self.get_models():
-            count+=(await model.put_tasks(q) or 0)
-        return count
-
-    async def put_tasks_loop(self,q):
-        count = 0
+    async def push_loop(self,q):
         try:
+            count = 0
+            restart_seconds = self.get_restart_seconds()
+            sleep_seconds = self.get_sleep_seconds()
             while True:
-                await asyncio.sleep(self.get_sleep_seconds())
-                count+=(await self.put_tasks(q) or 0)
-                if count and RESTART_COUNT and count>=RESTART_COUNT:
+                await asyncio.sleep(sleep_seconds)
+                for model in self.models:
+                    result = await model.push(q)
+                    if isinstance(result,int):
+                        count+=result
+                if RESTART_COUNT and count>=RESTART_COUNT:
+                    sys.exit(0)
+                if restart_seconds and STARTED_AT + timedelta(seconds=restart_seconds) < datetime.now():
                     sys.exit(0)
         except Exception as e:
             logging.error(e)
+        finally:
             sys.exit(0)
-
-    async def restart_loop(self):
-        while True:
-            restart_seconds = self.get_restart_seconds()
-            if restart_seconds and STARTED_AT + timedelta(seconds=restart_seconds) < datetime.now():
-                sys.exit(0)
-            await asyncio.sleep(10)
 
     async def worker_loop(self,q):
         try:
@@ -102,4 +99,5 @@ class WorkerCommand(BaseCommand):
                     await asyncio.sleep(1)
         except Exception as e:
             logging.error(e)
+        finally:
             sys.exit(0)

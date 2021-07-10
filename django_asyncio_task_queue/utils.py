@@ -1,27 +1,30 @@
-import django
+from datetime import datetime
 
-from .models import AbstractTask
+from django.apps import apps
 
-
-def get_models():
-    return list(filter(
-        lambda m:issubclass(m,AbstractTask) and not m._meta.abstract,
-        django.apps.apps.get_models()
-    ))
+from .models import AbstractBaseTask, Error, Log, Stat
 
 
-async def put_tasks(q,count):
-    for model in get_models():
-        model = task_class.model
-        db_table = model._meta.db_table
-        enqueued_count = await sync_to_async(model.objects.filter(
-            is_enqueued=True).count)()
-        enqueued_limit = 10
-        if model._meta.db_table in configs:
-            config = configs[db_table]
-            if config.is_disabled:
-                continue
-            enqueued_limit = config.enqueued_limit or 10
-        count = enqueued_limit - enqueued_count
-        if count <= 0:
-            continue
+def refresh_stat(model):
+    qs = model.objects.all()
+    count = qs.count()
+    disabled_count = qs.filter(is_enabled=False).count()
+    enabled_count = count - disabled_count
+    done_count = qs.filter(is_waiting=False).count()
+    pushed_count = qs.filter(is_pushed=True).count()
+    waiting_count = qs.filter(is_waiting=True).count()
+    error_count = Error.objects.filter(label=model._meta.label).count()
+    log_count = Log.objects.filter(label=model._meta.label).count()
+    defaults = dict(
+        app_label = model._meta.app_label,
+        count = count,
+        enabled_count = enabled_count,
+        disabled_count = disabled_count,
+        done_count = done_count,
+        pushed_count = pushed_count,
+        waiting_count = waiting_count,
+        error_count = error_count,
+        log_count = log_count,
+        updated_at = datetime.now()
+    )
+    Stat.objects.update_or_create(defaults,label=model._meta.label)

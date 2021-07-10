@@ -1,53 +1,92 @@
+from django.apps import apps
 from django.contrib import admin
-from django.urls import reverse
+from django.shortcuts import redirect
+from django.urls import path, reverse
+from django.utils.html import format_html
 from django.utils.timesince import timesince
-from django.utils.safestring import mark_safe
 
-from django_asyncio_task_queue.models import Stat
-from django_asyncio_task_queue.utils import get_models
+from ..models import AbstractTask, Stat
+from ..utils import refresh_stat
 
-def get_admin_url(db_table):
-    for model in get_models():
-        if model._meta.db_table==db_table:
-            return (reverse('admin:index') or '/')+model._meta.app_label+'/'+model._meta.model_name.replace('_','')
-
+def get_models():
+    return list(filter(
+        lambda m:issubclass(m,AbstractTask) and not m._meta.abstract,
+        apps.get_models()
+    ))
 
 class StatAdmin(admin.ModelAdmin):
-    list_display = ['get_db_table','get_pending_tasks_count']+[field.name for field in Stat._meta.get_fields()]+['timesince']
+    list_display = ['id','app_label','label','db_table','count','enabled_count','disabled_count','waiting_count','pushed_count','logs','errors','refresh_button','updated_at','timesince',]
+    list_filter = ['app_label',]
+
+    def db_table(self,obj):
+        try:
+            model = apps.get_model(*obj.label.split('.'))
+            return model._meta.db_table
+        except Exception:
+            pass
 
     def get_readonly_fields(self, request, obj=None):
         return [f.name for f in self.model._meta.fields]
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        for model in get_models():
+            defaults = dict(app_label=model._meta.app_label)
+            Stat.objects.get_or_create(defaults,label=model._meta.label)
+        return qs
+
+    def get_search_fields(self,request):
+        return [f.name for f in self.model._meta.get_fields()]
+
+    def get_urls(self):
+        return [
+            path(
+                'django_asyncio_task_queue_stat_refresh/<str:label>',
+                self.admin_site.admin_view(self.refresh),
+                name='django_asyncio_task_queue_stat_refresh',
+            ),
+        ] + super().get_urls()
+
     def has_add_permission(self, request, obj=None):
         return False
 
-    def has_delete_permission(self, request, obj=None):
-       return False
+    def errors(self, stat):
+        if stat.error_count is None:
+            return
+        return format_html(
+            '<a href="{}">%s</a>' % stat.error_count,
+            reverse('admin:django_asyncio_task_queue_error_changelist')+'?label='+stat.label,
+        )
+    errors.short_description = 'errors'
+    errors.allow_tags = True
 
-    def get_db_table(self,stat):
-        url = get_admin_url(stat.db_table)
-        text = stat.db_table
-        return mark_safe('<a href="%s">%s</a>' % (url,text))
-    get_db_table.short_description = 'db_table'
+    def logs(self, stat):
+        if stat.log_count is None:
+            return
+        return format_html(
+            '<a href="{}">%s</a>' % stat.log_count,
+            reverse('admin:django_asyncio_task_queue_log_changelist')+'?label='+stat.label,
+        )
+    logs.short_description = 'logs'
+    logs.allow_tags = True
 
-    def get_pending_tasks_count(self,stat):
-        url = get_admin_url(stat.db_table)+'/?is_pending__exact=1'
-        text = stat.pending_tasks_count
-        return mark_safe('<a href="%s">%s</a>' % (url,text))
-    get_pending_tasks_count.short_description = 'pending'
+    def refresh_button(self, model):
+        return format_html(
+            '<a class="button" href="{}">Refresh</a>',
+            reverse('admin:django_asyncio_task_queue_stat_refresh', args=[model.label]),
+        )
+    refresh_button.short_description = ''
+    refresh_button.allow_tags = True
 
+    def refresh(self, request, label):
+        model = apps.get_model(*label.split('.'))
+        refresh_stat(model)
+        url = reverse('admin:django_asyncio_task_queue_stat_changelist')
+        return redirect(url)
 
-    def get_errors_count(self,stat):
-        url = get_admin_url(stat.db_table)+'/?is_pending__exact=1'
-        text = stat.pending_tasks_count
-        return mark_safe('<a href="%s">%s</a>' % (url,text))
-    get_errors_count.short_description = 'pending'
-
-    def timesince(self, stat):
+    def timesince(self,stat):
         if stat.updated_at:
             return timesince(stat.updated_at).split(',')[0]+' ago'
-    timesince.short_description = ''
-
+    timesince.short_description = 'updated'
 
 admin.site.register(Stat, StatAdmin)
-
