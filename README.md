@@ -1,4 +1,4 @@
-[![](https://img.shields.io/badge/released-2021.6.11-green.svg?longCache=True)](https://pypi.org/project/django-asyncio-task-queue/)
+[![](https://img.shields.io/badge/released-2021.8.20-green.svg?longCache=True)](https://pypi.org/project/django-asyncio-task-queue/)
 [![](https://img.shields.io/badge/license-Unlicense-blue.svg?longCache=True)](https://unlicense.org/)
 
 ### Installation
@@ -19,8 +19,6 @@ INSTALLED_APPS+=['django_asyncio_task_queue']
 
 # optional:
 ASYNCIO_TASK_QUEUE_SLEEP=0.1
-ASYNCIO_TASK_QUEUE_RESTART_SECONDS=666 # restart after X seconds
-ASYNCIO_TASK_QUEUE_RESTART_COUNT=42*1000 # restart after X tasks
 ASYNCIO_TASK_QUEUE_MODELS=['my_app.Task1','my_app.Task2']
 ```
 #### `migrate`
@@ -64,8 +62,6 @@ for model in models:
 
 management commands
 ```bash
-$ export DJANGO_ASYNCIO_TASK_QUEUE_RESTART_SECONDS=666 # optional. restart after X seconds
-$ export DJANGO_ASYNCIO_TASK_QUEUE_RESTART_COUNT=9000 # optional. restart after X tasks
 $ export DJANGO_ASYNCIO_TASK_QUEUE_MODELS='app.Model1,app.Model2' # optional. custom models
 $ python manage.py asyncio_task_queue_worker 42 # 42 workers
 ```

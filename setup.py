@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='django-asyncio-task-queue',
-    version='2021.7.10',
+    version='2021.8.20',
     install_requires=[
         'asgiref'
     ],

@@ -1,11 +1,9 @@
 from django.apps import apps
 from django.core.management.base import BaseCommand
 
-from ...models import Stat
-from ...utils import refresh_stat
+from ...utils import get_models
 
 class Command(BaseCommand):
     def handle(self, *args, **options):
-        for stat in Stat.objects.all():
-            model = apps.get_model(*stat.label.split('.'))
-            refresh_stat(model)
+        for model in get_models():
+            model.refresh_stat()
