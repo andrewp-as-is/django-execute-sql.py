@@ -1,1 +1,1 @@
-Django asyncio task queue
+execute sql from file/folder/admin

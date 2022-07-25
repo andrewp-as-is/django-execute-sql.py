@@ -1,17 +1,14 @@
 from setuptools import setup
 
 setup(
-    name='django-asyncio-task-queue',
-    version='2021.8.20',
-    install_requires=[
-        'asgiref'
-    ],
+    name='django-execute-sql',
+    version='2022.7.25',
     packages=[
-        'django_asyncio_task_queue',
-        'django_asyncio_task_queue.admin',
-        'django_asyncio_task_queue.management',
-        'django_asyncio_task_queue.management.commands',
-        'django_asyncio_task_queue.migrations',
-        'django_asyncio_task_queue.models'
+        'django_execute_sql',
+        'django_execute_sql.admin',
+        'django_execute_sql.management',
+        'django_execute_sql.management.commands',
+        'django_execute_sql.migrations',
+        'django_execute_sql.models'
     ]
 )
